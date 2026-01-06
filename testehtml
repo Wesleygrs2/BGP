@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BGP Policy Manager</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        /* Estilos Base */
+        body {
+            padding-top: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1000px;
+        }
+        
+        /* DESIGN DO CABEÇALHO (Original Restaurado) */
+        .header {
+            background-color: #007bff; /* Fundo azul escuro */
+            color: white; /* Texto branco */
+            padding: 15px;
+            border-radius: 5px 5px 0 0;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            color: white;
+            font-weight: 700;
+        }
+        
+        .card-custom {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,.05);
+            border-radius: 5px;
+        }
+        .card-header {
+            border-radius: 5px 5px 0 0 !important;
+            border-bottom: 1px solid rgba(0,0,0,.1);
+            font-weight: bold;
+            padding: 10px 15px;
+        }
+        
+        .table th, .table td {
+            vertical-align: middle;
+            font-size: 0.9em;
+            padding: 0.5rem;
+        }
+        
+        /* ESTILOS ESPECÍFICOS PARA AS TABELAS CLICÁVEIS */
+        
+        /* Fundo da linha sem hover: Cinza muito claro */
+        #tabela-codigos.table-striped tbody tr, #tabela-policies.table-striped tbody tr {
+            background-color: #f5f5f5 !important; 
+        }
+        
+        .clickable-row {
+            transition: background-color 0.15s ease-in-out; 
+        }
+        
+        /* NOME DA POLICY / CÓDIGO */
+        #tabela-codigos tbody tr a, #tabela-policies tbody tr a {
+            color: #007bff;
+            font-weight: 500;
+        }
+
+        /* Hover AZUL na linha */
+        .clickable-row:hover {
+            background-color: #007bff !important; 
+            cursor: pointer; 
+        }
+        
+        .clickable-row:hover td {
+            color: #007bff !important; /* Texto branco no hover da linha */
+        }
+        .clickable-row:hover a {
+            color:  #007bff !important; /* Link branco no hover */
+            text-decoration: none; 
+        }
+        
+        .status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .sumario {
+            padding: 15px;
+            background-color: #e2f0fb;
+            border: 1px solid #b8daff;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        .hidden-field {
+            display: none;
+        }
+        hr {
+            border-top: 1px solid rgba(0,0,0,.1);
+        }
+
+        /* NOVO CSS PARA ALINHAR SEGUNDA COLUNA DA TABELA DE CLIENTES */
+        #tabela-policies th:nth-child(2),
+        #tabela-policies td:nth-child(2) {
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 BGP Policy Manager</h1>
+            <p class="mb-0">Visualização e Configuração de Route-Policies Huawei</p>
+        </div>
+
+        {% if error %}
+            <div class="alert alert-danger" role="alert">
+                <strong>Erro:</strong> {{ error }}
+            </div>
+        {% endif %}
+        
+        {% if config_status %}
+            <div class="status-message alert {{ 'alert-success' if 'Sucesso' in config_status else 'alert-danger' }}">
+                {{ config_status }}
+            </div>
+        {% endif %}
+
+        <div class="card card-custom">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Seletor de Políticas</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('visualizar') }}" method="POST" id="form-visualizar">
+                    
+                    <div class="form-row">
+                        <div class="form-group col-md-3">
+                            <label for="sentido">Sentido (Tráfego):</label>
+                            <select name="sentido" id="sentido" class="form-control">
+                                <option value="IN" {% if sentido_sel == 'IN' %}selected{% endif %}>IN (Entrada - LP)</option>
+                                <option value="OUT" {% if sentido_sel == 'OUT' %}selected{% endif %}>OUT (Saída - Prepend)</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="tipo_ip">Tipo de IP:</label>
+                            <select name="tipo_ip" id="tipo_ip" class="form-control">
+                                <option value="4" {% if tipo_ip_sel == '4' %}selected{% endif %}>IPv4</option>
+                                <option value="6" {% if tipo_ip_sel == '6' %}selected{% endif %}>IPv6</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="tipo_politica">Tipo de Política:</label>
+                            <select name="tipo_politica" id="tipo_politica" class="form-control">
+                                <option value="OPERADORA" {% if tipo_politica_sel == 'OPERADORA' %}selected{% endif %}>Operadoras</option>
+                                <option value="CLIENTE" {% if tipo_politica_sel == 'CLIENTE' %}selected{% endif %}>Clientes</option>
+                                <option value="OPENCDN" {% if tipo_politica_sel == 'OPENCDN' %}selected{% endif %}>OPEN CDN (BEMOL)</option> </select>
+                        </div>
+                        <div class="form-group col-md-3 d-flex align-items-end">
+                            <button type="submit" name="acao" value="visualizar" class="btn btn-primary btn-block">
+                                Visualizar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <hr>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6 {% if tipo_politica_sel != 'OPERADORA' %}hidden-field{% endif %}" id="campo-codigo">
+                            <label for="codigo_cliente">Código de Cliente (Node):</label>
+                            <input type="text" name="codigo_cliente" id="codigo_cliente" class="form-control" placeholder="Deixe vazio para listar todos ou digite 9999 para resumo" value="{{ codigo or '' }}">
+                        </div>
+                        
+                        <div class="form-group col-md-6 {% if tipo_politica_sel == 'OPERADORA' %}hidden-field{% endif %}" id="campo-cliente-placeholder">
+                            <label>Policy Alvo:</label>
+                            {% if tipo_politica_sel == 'CLIENTE' %}
+                                <input type="text" class="form-control" placeholder="Clique em Visualizar para listar as policies" disabled>
+                            {% elif tipo_politica_sel == 'OPENCDN' %}
+                                <input type="text" class="form-control" value="BEMOL_OPENCDN (Policy Fixa)" disabled>
+                            {% else %}
+                                <input type="text" class="form-control" placeholder="Clique em Visualizar para listar as policies" disabled>
+                            {% endif %}
+                        </div>
+
+                        <input type="hidden" name="policy_name_cliente" id="policy_name_cliente" value="{{ policy_name_cliente or '' }}">
+                    </div>
+
+                </form>
+
+                {% if instrucao %}
+                    <small class="form-text text-info mt-3">{{ instrucao }}</small>
+                {% endif %}
+            </div>
+        </div>
+
+{% if lista_codigos %}
+    <div class="card card-custom">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Códigos de Clientes Encontrados ({{ sentido_sel }} / IPv{{ tipo_ip_sel }})</h5>
+        </div>
+        <div class="card-body">
+            <p>Clique na linha para visualizar os detalhes em todas as operadoras.</p>
+            <div class="table-responsive">
+                <table id="tabela-codigos" class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Código (Node)</th>
+                            <th>Prefix-List / Identificador</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cod, nome in lista_codigos %}
+                        <tr class="clickable-row" data-href="{{ url_for('visualizar', sentido=sentido_sel, tipo_ip=tipo_ip_sel, tipo_politica='OPERADORA', codigo_cliente=cod) }}">
+                            <td>
+                                <a href="{{ url_for('visualizar', sentido=sentido_sel, tipo_ip=tipo_ip_sel, tipo_politica='OPERADORA', codigo_cliente=cod) }}">
+                                    {{ cod }}
+                                </a>
+                            </td>
+                            <td>{{ nome }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+{% if lista_policies_cliente %}
+    <div class="card card-custom">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Route-Policies de Clientes Encontradas (IPv{{ tipo_ip_sel }})</h5>
+        </div>
+        <div class="card-body">
+            <p>Clique na linha para visualizar os detalhes da Route-Policy.</p>
+            <div class="table-responsive">
+                <table id="tabela-policies" class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Nome da Policy</th>
+                            <th>Visualizar Configurações</th> </tr>
+                    </thead>
+                    <tbody>
+                        {% for policy_name, identifier in lista_policies_cliente %}
+                        <tr class="clickable-row" data-href="{{ url_for('visualizar', sentido=sentido_sel, tipo_ip=tipo_ip_sel, tipo_politica='CLIENTE', policy_name_cliente=policy_name) }}">
+                            <td>
+                                <a href="{{ url_for('visualizar', sentido=sentido_sel, tipo_ip=tipo_ip_sel, tipo_politica='CLIENTE', policy_name_cliente=policy_name) }}">
+                                    {{ policy_name }}
+                                </a>
+                            </td>
+                            <td>Visualizar</td> </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+
+{% if tabela_detalhe %}
+    <div class="card card-custom">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Detalhes da Policy: 
+                <strong>
+                    {% if tipo_politica_sel == 'OPERADORA' %}
+                        {{ client_identifier }} (Código {{ codigo }})
+                    {% elif tipo_politica_sel == 'CLIENTE' %}
+                        {{ policy_name_cliente }}
+                    {% else %}
+                        OPEN CDN ({{ policy_name_cliente }})
+                    {% endif %}
+                </strong>
+            </h5>
+
+            {% if policy_alvo_config %}
+                <p class="mb-0 small">Policy Alvo para Config: 
+                    {% if tipo_politica_sel == 'OPERADORA' %}
+                        {{ policy_alvo_config }} (Node {{ codigo }})
+                    {% else %}
+                        {{ policy_alvo_config }}
+                    {% endif %}
+                </p>
+            {% endif %}
+        </div>
+
+        <div class="card-body">
+            <div class="sumario">
+                <strong>{{ sumario }}:</strong>
+                {% if melhores %}
+                    <ul class="list-inline mb-0">
+                        {% for op in melhores %}
+                            <li class="list-inline-item badge badge-primary">{{ op }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+
+            <h6 class="mt-4">Configuração Aplicada ({{ sentido_sel }} / IPv{{ tipo_ip_sel }})</h6>
+
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered table-striped">
+
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Código</th>
+                            <th>Operadora/Peer</th>
+                            <th>Ação</th>
+                            
+                            {% if sentido_sel == 'IN' %}
+                                <th>Local-Preference</th>
+                            {% else %}
+                                <th>AS-Path</th>
+                                <th>Peso Prepend</th>
+                            {% endif %}
+                            
+                            <th>Community</th>
+                            <th>IP-Prefix</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for bloco in tabela_detalhe %}
+                        <tr>
+                            <td>{{ bloco.get('Código', '-') }}</td> 
+                            <td>{{ bloco.get('Operadora', '-') }}</td>
+                            <td>
+                                <span class="badge badge-{{ 'success' if bloco.get('Ação', '') == 'PERMIT' else 'danger' }}">
+                                    {{ bloco.get('Ação', '-') }}
+                                </span>
+                            </td>
+
+                            {% if sentido_sel == 'IN' %}
+                                <td>{{ bloco.get('Local-Preference', 0) }}</td>
+                            {% else %}
+                                <td>{{ bloco.get('AS-Path', 'NONE') }}</td>
+                                <td>{{ bloco.get('Peso Prepend', 0) }}</td>
+                            {% endif %}
+                            
+                            <td>{{ bloco.get('Community', '-') }}</td> <td>{{ bloco.get('IP-Prefix', '-') }}</td> </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if not is_resumo %}
+            <hr>
+            <h6 class="mt-4">🚀 Configurar Atributo (Node {{ codigo if tipo_politica_sel == 'OPERADORA' else 'na tabela' }})</h6>
+
+            <form action="{{ url_for('configurar') }}" method="POST" class="form-inline">
+                
+                <input type="hidden" name="sentido_config" value="{{ sentido_sel }}">
+                <input type="hidden" name="tipo_ip_config" value="{{ tipo_ip_sel }}">
+                <input type="hidden" name="tipo_politica_config" value="{{ tipo_politica_sel }}">
+                <input type="hidden" name="codigo_config" value="{{ codigo }}">
+                <input type="hidden" name="policy_name_alvo" value="{{ policy_name_cliente if tipo_politica_sel in ['CLIENTE', 'OPENCDN'] else '' }}"> 
+
+                {% if tipo_politica_sel == 'OPERADORA' %}
+                    <div class="form-group mr-2">
+                        <label for="operadora_alvo" class="mr-2">Policy Alvo:</label>
+                        <select name="operadora_alvo" id="operadora_alvo" class="form-control" required>
+                            <option value="">Selecione uma operadora</option>
+                            {% for num, op in operadoras_map.items() %}
+                                <option value="{{ num }}">{{ op }} ({{ sentido_sel }}-IPV{{ tipo_ip_sel }}-{{ op }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                {% elif tipo_politica_sel in ['CLIENTE', 'OPENCDN'] %} <div class="form-group mr-2">
+                        <label for="node_alvo_cliente" class="mr-2">Node Alvo (Código):</label>
+                        <input type="number" name="node_alvo_cliente" id="node_alvo_cliente" class="form-control"
+                               placeholder="Ex: {{ tabela_detalhe[0].get('Código', '10') if tabela_detalhe else '10' }}" required>
+                    </div>
+                {% endif %}
+
+                {% if sentido_sel == 'IN' %}
+                    <div class="form-group mr-2">
+                        <label for="novo_lp" class="mr-2">Novo Local-Preference:</label>
+                        <input type="number" name="novo_lp" id="novo_lp" class="form-control" placeholder="Ex: 1000" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning">Aplicar LP</button>
+                {% else %}
+                    <div class="form-group mr-2">
+                        <label for="novo_as_path" class="mr-2">Novo AS-Path Prepend:</label>
+                        <input type="text" name="novo_as_path" id="novo_as_path" class="form-control"
+                               placeholder="Ex: {{ AS_LOCAL | default('65000') }} {{ AS_LOCAL | default('65000') }} (ou NONE)" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning">Aplicar Prepend</button>
+                {% endif %}
+            </form>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
+
+</div> <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // ------------------------------------------------------------------
+    // 💡 CORREÇÃO CRUCIAL: Limpa campos de detalhe ao mudar qualquer filtro
+    // ------------------------------------------------------------------
+    function clearDetailFields() {
+        // Limpa o Código de Cliente (input para Operadora)
+        $('#codigo_cliente').val(''); 
+        // Limpa a policy_name_cliente (agora um input hidden)
+        $('#policy_name_cliente').val(''); 
+        
+        // Garante que as propriedades de requerimento (se houver) estejam corretas
+        $('#policy_name_cliente').prop('required', false);
+        $('#codigo_cliente').prop('required', false);
+    }
+
+    $('#tipo_politica').change(function() {
+        clearDetailFields(); // <--- CHAMA A LIMPEZA AO MUDAR O TIPO DE POLÍTICA
+        var selectedType = $(this).val();
+        var campoCodigo = $('#campo-codigo');
+        var campoClientePlaceholder = $('#campo-cliente-placeholder');
+
+        if (selectedType === 'OPERADORA') {
+            campoCodigo.removeClass('hidden-field');
+            campoClientePlaceholder.addClass('hidden-field');
+            // Apenas o código pode ser obrigatório (se o usuário não o deixar vazio para listar)
+            $('#codigo_cliente').prop('required', false);
+        } else if (selectedType === 'CLIENTE' || selectedType === 'OPENCDN') {
+            campoCodigo.addClass('hidden-field');
+            campoClientePlaceholder.removeClass('hidden-field');
+            // Para CLIENTE/OPENCDN, o valor é setado apenas pelo clique na lista/fixo, então não é "required" no formulário principal
+            $('#policy_name_cliente').prop('required', false);
+        }
+        
+        // NOVO: Atualiza o placeholder do campo cliente/cdn
+        if (selectedType === 'OPENCDN') {
+            // Garante que o valor da policy fixa seja passado no submit
+            $('#policy_name_cliente').val('BEMOL_OPENCDN'); 
+            
+            // Atualiza o display do placeholder
+            $('#campo-cliente-placeholder input').val('BEMOL_OPENCDN (Policy Fixa)').prop('disabled', true).attr('placeholder', '');
+        } else if (selectedType === 'CLIENTE') {
+             $('#campo-cliente-placeholder input').val('').prop('disabled', true).attr('placeholder', 'Clique em Visualizar para listar as policies');
+        } else {
+             $('#campo-cliente-placeholder input').val('').prop('disabled', true).attr('placeholder', '');
+        }
+    });
+
+    // ------------------------------------------------------------------
+    // 💡 NOVOS LISTENERS: Garante a limpeza ao mudar Sentido ou Tipo de IP
+    // ------------------------------------------------------------------
+    $('#sentido, #tipo_ip').change(function() {
+        clearDetailFields();
+        // Dispara o change para corrigir o placeholder da policy
+        $('#tipo_politica').trigger('change');
+    });
+
+    $(document).ready(function() {
+        // Dispara o change para corrigir os campos hidden e placeholders no carregamento
+        $('#tipo_politica').trigger('change');
+
+        // Listener para a lista de Códigos (Operadora)
+        $('#tabela-codigos').on('click', 'tr.clickable-row', function() {
+            var url = $(this).data('href');
+            if (url) {
+                window.location.href = url;
+            }
+        });
+
+        // Listener para a lista de Policies (Cliente)
+        $('#tabela-policies').on('click', 'tr.clickable-row', function() {
+            var url = $(this).data('href');
+            if (url) {
+                window.location.href = url;
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
