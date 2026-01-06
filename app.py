@@ -529,6 +529,7 @@ def visualizar():
     """
     # 🔹 Coleta SOMENTE nodes válidos do OPENCDN
     lista_nodes_opencdn = []
+    lista_nodes_cliente = []
     
     # 1. RECEBIMENTO DE VARIÁVEIS (POST > GET)
     sentido = request.values.get('sentido', 'IN')
@@ -656,7 +657,8 @@ def visualizar():
         policy_name_visualizada=data['policy_name_visualizada'],
         policy_alvo_config=data['policy_alvo_config'],
         config_status=config_status,
-        lista_nodes_opencdn=lista_nodes_opencdn
+        lista_nodes_opencdn=lista_nodes_opencdn,
+        lista_nodes_cliente=lista_nodes_cliente
         
     )
 

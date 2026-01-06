@@ -371,124 +371,117 @@
             </div>
             {% if not is_resumo %}
             <hr>
-            <h6 class="mt-4">
-                🚀 Configurar Atributo
-                {% if sentido_sel == 'IN' %}
-                    (Node {{ codigo }}) - LP automático = 950
-                {% else %}
-                    (Node {{ codigo }})
-                {% endif %}
-            </h6>
+            {% if tipo_politica_sel == 'OPERADORA' and sentido_sel == 'IN' %}
+                <h6 class="mt-4">
+                    🚀 Configurar Atributo (Node {{ codigo }}) - LP automático = 950
+                </h6>
+            {% endif %}
 
 
-            <form action="{{ url_for('configurar') }}" method="POST" class="form-inline">
-                
+
+                <form action="{{ url_for('configurar') }}" method="POST" class="form-inline">
                 <input type="hidden" name="sentido_config" value="{{ sentido_sel }}">
                 <input type="hidden" name="tipo_ip_config" value="{{ tipo_ip_sel }}">
                 <input type="hidden" name="tipo_politica_config" value="{{ tipo_politica_sel }}">
                 <input type="hidden" name="codigo_config" value="{{ codigo }}">
 
+                {# --- PARTE 1: SELEÇÃO DO ALVO (NODE OU POLICY) --- #}
+                
                 {% if tipo_politica_sel == 'OPERADORA' and sentido_sel == 'IN' %}
                     <div class="form-group mr-2">
                         <label class="mr-2">Policy Alvo:</label>
-                        <input type="text"
-                            id="policy_alvo_auto"
-                            class="form-control"
-                            readonly
-                            placeholder="Selecione a operadora principal">
-                    
-                        <input type="hidden"
-                                name="policy_alvo_auto_hidden"
-                                id="policy_alvo_auto_hidden">
-                        
+                        <input type="text" id="policy_alvo_auto" class="form-control" readonly placeholder="Selecione a operadora principal">
+                        <input type="hidden" name="policy_alvo_auto_hidden" id="policy_alvo_auto_hidden">
                     </div>
 
-
                 {% elif tipo_politica_sel == 'CLIENTE' %}
-
-                    <!-- CLIENTE continua como está -->
                     <div class="form-group mr-2">
-                        <label for="node_alvo_cliente" class="mr-2">Node Alvo (Código):</label>
-                        <input type="number" name="node_alvo_cliente" id="node_alvo_cliente"
-                            class="form-control"
-                            placeholder="Ex: 1010" required>
+                        <label for="node_alvo_cliente" class="mr-2">Node Alvo (Cliente):</label>
+                        <select name="node_alvo_cliente" id="node_alvo_cliente" class="form-control" required>
+                            <option value="">Selecione o Node</option>
+                            {% for bloco in tabela_detalhe %}
+                                {% if bloco.get('Código') %}
+                                    <option value="{{ bloco.get('Código') }}">
+                                        {{ bloco.get('Código') }}
+                                    </option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
                     </div>
 
                 {% elif tipo_politica_sel == 'OPENCDN' %}
-
-                    <!-- OPENCDN: somente select -->
                     <div class="form-group mr-2">
-                        <label for="node_alvo_cliente" class="mr-2">Node Alvo (Cliente):</label>
-                        <select name="node_alvo_cliente" id="node_alvo_cliente"
-                                class="form-control" required>
-                            <option value="">Selecione o cliente</option>
-
-                            {% for cod in lista_nodes_opencdn %}
-                                <option value="{{ cod }}">{{ cod }}</option>
+                        <label for="node_alvo_cliente" class="mr-2">Node Alvo (CDN):</label>
+                        <select name="node_alvo_cliente" id="node_alvo_cliente" class="form-control" required>
+                            <option value="">Selecione o Node</option>
+                            {% for bloco in tabela_detalhe %}
+                                {% if bloco.get('Código') %}
+                                    <option value="{{ bloco.get('Código') }}">
+                                        {{ bloco.get('Código') }}
+                                    </option>
+                                {% endif %}
                             {% endfor %}
 
                         </select>
                     </div>
-
                 {% endif %}
 
+                {# --- PARTE 2: AÇÃO E BOTÃO DE SUBMIT --- #}
 
                 {% if sentido_sel == 'IN' %}
-                    <div class="form-group mr-2">
-                        <label for="operadora_principal" class="mr-2">Operadora Principal:</label>
-                        <select name="operadora_principal" id="operadora_principal" class="form-control" required>
-                            <option value="">Selecione</option>
-                            {% for num, op in operadoras_map.items() %}
-                                <option value="{{ op }}">{{ op }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-warning">
-                        Aplicar
-                    </button>
+                    {% if tipo_politica_sel == 'OPERADORA' %}
+                        <div class="form-group mr-2">
+                            <label for="operadora_principal" class="mr-2">Operadora Principal:</label>
+                            <select name="operadora_principal" id="operadora_principal" class="form-control" required>
+                                <option value="">Selecione</option>
+                                {% for num, op in operadoras_map.items() %}
+                                    <option value="{{ op }}">{{ op }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-warning">Aplicar Local-Pref</button>
+                    {% else %}
+                        {# Ação para CLIENTE ou OPENCDN no sentido IN #}
+                        <div class="form-group mr-2">
+                            <label for="acao_route" class="mr-2">Ação:</label>
+                            <select name="acao_route" id="acao_route" class="form-control" required>
+                                <option value="PERMIT">PERMIT</option>
+                                <option value="DENY">DENY</option>
+                            </select>
+                        </div>
+                        <input type="hidden" name="policy_name_alvo" value="{{ policy_name_cliente if tipo_politica_sel == 'CLIENTE' else 'BEMOL_OPENCDN' }}">
+                        <button type="submit" class="btn btn-warning">Aplicar Ação</button>
+                    {% endif %}
+
                 {% else %}
-                        {% if tipo_politica_sel == 'OPENCDN' %}
+                    {# SENTIDO OUT (Prepend) #}
+                    {% if tipo_politica_sel == 'OPENCDN' %}
                         <div class="form-group mr-2">
                             <label class="mr-2">Policy Alvo:</label>
                             <input type="text" class="form-control" value="{{ policy_alvo_config }}" readonly>
                             <input type="hidden" name="policy_name_alvo" value="{{ policy_alvo_config }}">
                         </div>
-                    {% endif %}
-
-                    {% if tipo_politica_sel == 'OPENCDN' %}
-
                         <div class="form-group mr-2">
                             <label for="acao_route" class="mr-2">Ação:</label>
-                            <select name="acao_route" id="acao_route"
-                                    class="form-control" required>
+                            <select name="acao_route" id="acao_route" class="form-control" required>
                                 <option value="PERMIT">PERMIT</option>
                                 <option value="DENY">DENY</option>
                             </select>
                         </div>
-
-                        <button type="submit" class="btn btn-warning">
-                            Aplicar
-                        </button>
-
+                        <button type="submit" class="btn btn-warning">Aplicar</button>
                     {% else %}
-
-                        <!-- OUT normal continua com prepend -->
                         <div class="form-group mr-2">
                             <label class="mr-2">Policy Alvo (Operadora):</label>
                             <select name="operadora_alvo" class="form-control" required>
                                 <option value="">Selecione</option>
                                 {% for num, op in operadoras_map.items() %}
-                                    <option value="{{ num }}">
-                                        OUT-IPV{{ tipo_ip_sel }}-{{ op }}
-                                    </option>
+                                    <option value="{{ num }}">OUT-IPV{{ tipo_ip_sel }}-{{ op }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-
                         <div class="form-group mr-2">
                             <label for="qtd_prepend" class="mr-2">Quantidade de AS-Path:</label>
-                            <select name="qtd_prepend" id="qtd_prepend"
-                                    class="form-control" required>
+                            <select name="qtd_prepend" id="qtd_prepend" class="form-control" required>
                                 <option value="0">0</option>
                                 <option value="1">1x</option>
                                 <option value="2">2x</option>
@@ -497,16 +490,10 @@
                                 <option value="5">5x</option>
                             </select>
                         </div>
-
-                        <button type="submit" class="btn btn-warning">
-                            Aplicar Prepend
-                        </button>
-
+                        <button type="submit" class="btn btn-warning">Aplicar Prepend</button>
                     {% endif %}
                 {% endif %}
-
-
-                        </form>
+            </form>
             {% endif %}   {# fecha if not is_resumo #}
         </div>
     </div>
